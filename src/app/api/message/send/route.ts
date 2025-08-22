@@ -8,6 +8,8 @@ import { GroupChat, User } from '@/types/db'
 import { nanoid } from 'nanoid'
 import { getServerSession } from 'next-auth'
 
+
+
 export async function POST(req: Request) {
   try {
   

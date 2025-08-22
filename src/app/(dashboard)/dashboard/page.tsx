@@ -7,12 +7,22 @@ import { getServerSession } from 'next-auth'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Message, User } from '@/types/db'
 
 const page = async ({}) => {
   const session = await getServerSession(authOptions)
   if (!session) notFound()
 
-  const friends = await getFriendsByUserId(session.user.id)
+  //const friends = await getFriendsByUserId(session.user.id)
+
+  const friendIds = await fetchRedis('smembers', `user:${session.user.id}:friends`) as string[]
+
+  const friends = await Promise.all(
+  friendIds.map(async (id): Promise<User> => {
+    const raw = await fetchRedis('get', `user:${id}`)
+    return JSON.parse(raw as string) as User
+  })
+)
 
   const friendsWithLastMessage = await Promise.all(
     friends.map(async (friend) => {
@@ -29,6 +39,16 @@ const page = async ({}) => {
         ...friend,
         lastMessage,
       }
+    })
+  )
+
+  const groupsRaw = await fetchRedis('smembers', `user:${session.user.id}:groups`) as string[]
+  const groups = await Promise.all(
+    groupsRaw.map(async (groupId) => {
+      const groupData = await fetchRedis('get', `groups:${groupId}`)
+      if (!groupData) return null
+      const group = JSON.parse(groupData) as { id: string, name: string, image?: string }
+      return group
     })
   )
 
@@ -74,6 +94,33 @@ const page = async ({}) => {
                   </span>
                   {friend.lastMessage?.text}
                 </p>
+              </div>
+            </Link>
+          </div>
+        ))
+      )}
+      <h2 className="font-bold text-3xl mt-8 mb-4">Your Groups</h2>
+      {groups.filter(Boolean).length === 0 ? (
+        <p className='text-sm text-zinc-500'>No groups yet...</p>
+      ) : (
+        groups.filter(Boolean).map((group) => (
+          <div
+            key={group!.id}
+            className='relative bg-zinc-50 border border-zinc-200 p-3 rounded-md'>
+            <Link href={`/dashboard/chat/group-${group!.id}`} className='relative sm:flex'>
+              <div className='mb-4 flex-shrink-0 sm:mb-0 sm:mr-4'>
+                <div className='relative h-6 w-6'>
+                  <Image
+                    referrerPolicy='no-referrer'
+                    className='rounded-full'
+                    alt={`${group!.name} group picture`}
+                    src={group!.image || '/default-group.png'}
+                    fill
+                  />
+                </div>
+              </div>
+              <div>
+                <h4 className='text-lg font-semibold'>{group!.name}</h4>
               </div>
             </Link>
           </div>

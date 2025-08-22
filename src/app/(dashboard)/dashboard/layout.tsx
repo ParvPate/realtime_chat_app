@@ -12,6 +12,7 @@ import { getFriendsByUserId } from '@/helpers/get-friends-by-user-id'
 import SidebarChatList from '@/components/SidebarChatList'
 import MobileChatLayout from '@/components/MobileChatLayout'
 import { SidebarOption } from '@/types/typings'
+import { User } from '@/types/db'
 
 interface LayoutProps {
   children: ReactNode
@@ -24,12 +25,8 @@ export const metadata = {
 }
 
 const sidebarOptions: SidebarOption[] = [
-  {
-    id: 1,
-    name: 'Add friend',
-    href: '/dashboard/add',
-    Icon: 'UserPlus',
-  },
+  { id: 1, name: 'Add friend',    href: '/dashboard/add',          Icon: 'UserPlus' },
+  { id: 2, name: 'Create group',  href: '/dashboard/groups/create', Icon: 'Users'    },
 ]
 
 const Layout = async ({ children }: LayoutProps) => {
@@ -131,7 +128,7 @@ const Layout = async ({ children }: LayoutProps) => {
           </ul>
         </nav>
       </div>
-
+      
       <aside className='max-h-screen container py-16 md:py-12 w-full'>
         {children}
       </aside>

@@ -7,6 +7,7 @@ import { GroupChat } from '@/types/db'
 
 export async function POST(req: Request) {
   try {
+    /*
     const session = await getServerSession(authOptions)
     if (!session) return new Response('Unauthorized', { status: 401 })
 
@@ -56,6 +57,31 @@ export async function POST(req: Request) {
     )
 
     return Response.json({ group })
+    */
+    const session = await getServerSession(authOptions)
+    if (!session) return new Response('Unauthorized', { status: 401 })
+
+    const { name, members } = await req.json()
+
+    if (!name || !Array.isArray(members) || members.length < 2) {
+      return new Response('Invalid group data', { status: 400 })
+    }
+
+    const groupId = nanoid()
+    const groupKey = `group:${groupId}`
+
+    const groupData = {
+      id: groupId,
+      name,
+      admin: session.user.id,
+      members: [session.user.id, ...members],
+      createdAt: Date.now(),
+    }
+
+    await db.set(groupKey, JSON.stringify(groupData))
+    await db.sadd(`${groupKey}:members`, session.user.id, ...members)
+
+    return new Response(JSON.stringify(groupData), { status: 200 })
   } catch (error) {
     return new Response('Internal Error', { status: 500 })
   }
