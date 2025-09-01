@@ -9,7 +9,7 @@ import ChatInput from '@/components/ChatInput'
 import Image from 'next/image'
 import clsx from 'clsx'
 import { GroupInfo, GroupMember, GroupMessage } from '@/types/group'
-import GroupPoll from './GroupPoll'
+import GroupPoll from '@/components/group/GroupPoll'
 
 type Props = {
   groupId: string
@@ -31,6 +31,7 @@ export default function GroupChat({
   const [messages, setMessages] = useState<GroupMessage[]>(initialMessages)
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
   const [showMembers, setShowMembers] = useState(false)
+  const [openPickerId, setOpenPickerId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   // quick lookup user info
@@ -169,9 +170,66 @@ export default function GroupChat({
                   </div>
                 ) : (
                   <>
-                    <div className="whitespace-pre-wrap break-words">
-                      {m.text === '__deleted__' ? (mine ? 'You unsent a message' : 'This message was unsent') : m.text}
+                    <div className="group relative flex items-start gap-2">
+                      <div className="whitespace-pre-wrap break-words">
+                        {m.text === '__deleted__' ? (mine ? 'You unsent a message' : 'This message was unsent') : m.text}
+                      </div>
+
+                      {/* Reaction trigger button appears to the right of the message */}
+                      {!mine && m.text !== '__deleted__' && (
+                        <button
+                          className="self-start opacity-0 group-hover:opacity-100 transition rounded-full bg-white border border-gray-200 shadow px-2 py-1"
+                          onClick={() => setOpenPickerId(openPickerId === m.id ? null : m.id)}
+                          aria-label="Add reaction"
+                          title="Add reaction"
+                        >
+                          😊
+                        </button>
+                      )}
+
+                      {/* Picker under the message, aligned to the right */}
+                      {openPickerId === m.id && !mine && m.text !== '__deleted__' && (
+                        <div className="absolute right-0 top-full mt-1 flex gap-1 rounded-md bg-white border border-gray-200 shadow px-2 py-1 z-10">
+                          {['👍','❤️','😂','😮','😢','😡'].map((e) => (
+                            <button
+                              key={e}
+                              className="text-base hover:scale-110 transition"
+                              onClick={() => {
+                                fetch('/api/message/react', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ chatId: `group:${groupId}`, messageId: m.id, emoji: e }),
+                                })
+                                  .catch(() => {})
+                                  .finally(() => setOpenPickerId(null))
+                              }}
+                              aria-label={`React ${e}`}
+                              title={`React ${e}`}
+                            >
+                              {e}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Reactions summary */}
+                    {m.reactions && Object.keys(m.reactions).length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                        {Object.entries(m.reactions).map(([emo, users]) =>
+                          users && users.length > 0 ? (
+                            <span
+                              key={emo}
+                              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-gray-700"
+                            >
+                              <span>{emo}</span>
+                              <span className="text-[10px]">{users.length}</span>
+                            </span>
+                          ) : null
+                        )}
+                      </div>
+                    )}
+
                     <div className={clsx('mt-1 text-[10px]', mine ? 'text-indigo-100' : 'text-gray-500')}>
                       {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       {mine && m.text !== '__deleted__' && (

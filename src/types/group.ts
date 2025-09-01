@@ -39,6 +39,8 @@ export type GroupMessage = {
   // optional poll payload (only when type === 'poll')
   type?: 'poll'
   poll?: GroupPoll
+  // emoji reactions: { "👍": ["userId1","userId2"], "❤️": [...] }
+  reactions?: Record<string, string[]>
   // client-only UI flags
   _status?: 'sending' | 'sent'
 }

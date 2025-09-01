@@ -5,13 +5,13 @@ import { fetchRedis } from '@/helpers/redis'
 import GroupChat from '@/components/group/GroupChat'
 import { GroupInfo, GroupMember, GroupMessage } from '@/types/group'
 
-type Params = { params: { groupId: string } }
+type Params = { params: Promise<{ groupId: string }> }
 
 export default async function GroupPage({ params }: Params) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  const groupId = params.groupId
+  const { groupId } = await params
 
   // Info
   const infoRaw = await fetchRedis('get', `group:${groupId}:info`)

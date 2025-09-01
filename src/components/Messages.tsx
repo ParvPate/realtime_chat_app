@@ -40,6 +40,7 @@ const Messages: FC<MessagesProps> = ({
   isGroup,
 }) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [openPickerId, setOpenPickerId] = useState<string | null>(null)
 
   useEffect(() => {
     let channelKey: string;
@@ -151,34 +152,91 @@ const Messages: FC<MessagesProps> = ({
                     'order-2 items-start': !isCurrentUser,
                   }
                 )}>
-                <span
-                  className={cn('px-4 py-2 rounded-lg inline-block', {
-                    'bg-indigo-600 text-white': isCurrentUser && message.text !== '__deleted__',
-                    'bg-gray-200 text-gray-900': !isCurrentUser && message.text !== '__deleted__',
-                    'bg-gray-100 text-gray-500 italic': message.text === '__deleted__',
-                    'rounded-br-none':
-                      !hasNextMessageFromSameUser && isCurrentUser,
-                    'rounded-bl-none':
-                      !hasNextMessageFromSameUser && !isCurrentUser,
-                  })}>
-                  {message.text === '__deleted__'
-                    ? (isCurrentUser ? 'You unsent a message' : 'This message was unsent')
-                    : message.text}{' '}
-                  <span className='ml-2 text-xs text-gray-400'>
-                    {formatTimestamp(message.timestamp)}
+                <div className="group relative flex items-start gap-2">
+                  <span
+                    className={cn('px-4 py-2 rounded-lg inline-block', {
+                      'bg-indigo-600 text-white': isCurrentUser && message.text !== '__deleted__',
+                      'bg-gray-200 text-gray-900': !isCurrentUser && message.text !== '__deleted__',
+                      'bg-gray-100 text-gray-500 italic': message.text === '__deleted__',
+                      'rounded-br-none':
+                        !hasNextMessageFromSameUser && isCurrentUser,
+                      'rounded-bl-none':
+                        !hasNextMessageFromSameUser && !isCurrentUser,
+                    })}>
+                    {message.text === '__deleted__'
+                      ? (isCurrentUser ? 'You unsent a message' : 'This message was unsent')
+                      : message.text}{' '}
+                    <span className='ml-2 text-xs text-gray-400'>
+                      {formatTimestamp(message.timestamp)}
+                    </span>
+                    {isCurrentUser && message.text !== '__deleted__' && (
+                      <button
+                        onClick={() => unsendMessage(message.id)}
+                        className={cn(
+                          'ml-3 text-xs underline',
+                          isCurrentUser ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'
+                        )}
+                      >
+                        Unsend
+                      </button>
+                    )}
                   </span>
-                  {isCurrentUser && message.text !== '__deleted__' && (
+
+                  {!isCurrentUser && message.text !== '__deleted__' && (
                     <button
-                      onClick={() => unsendMessage(message.id)}
-                      className={cn(
-                        'ml-3 text-xs underline',
-                        isCurrentUser ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'
-                      )}
+                      className="self-start opacity-0 group-hover:opacity-100 transition rounded-full bg-white border border-gray-200 shadow px-2 py-1"
+                      onClick={() =>
+                        setOpenPickerId(openPickerId === message.id ? null : message.id)
+                      }
+                      aria-label="Add reaction"
+                      title="Add reaction"
                     >
-                      Unsend
+                      😊
                     </button>
                   )}
-                </span>
+
+                  {/* Picker under bubble, aligned to the right */}
+                  {openPickerId === message.id && !isCurrentUser && message.text !== '__deleted__' && (
+                    <div className="absolute right-0 top-full mt-1 flex gap-1 rounded-md bg-white border border-gray-200 shadow px-2 py-1 z-10">
+                      {['👍','❤️','😂','😮','😢','😡'].map((e) => (
+                        <button
+                          key={e}
+                          className="text-base hover:scale-110 transition"
+                          onClick={() => {
+                            fetch('/api/message/react', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ chatId, messageId: message.id, emoji: e }),
+                            })
+                              .catch(() => {})
+                              .finally(() => setOpenPickerId(null))
+                          }}
+                          aria-label={`React ${e}`}
+                          title={`React ${e}`}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Reactions summary */}
+                {message.reactions && Object.keys(message.reactions).length > 0 && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                    {Object.entries(message.reactions).map(([emo, users]) => (
+                      users.length > 0 ? (
+                        <span
+                          key={emo}
+                          className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-gray-700"
+                        >
+                          <span>{emo}</span>
+                          <span className="text-[10px]">{users.length}</span>
+                        </span>
+                      ) : null
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div

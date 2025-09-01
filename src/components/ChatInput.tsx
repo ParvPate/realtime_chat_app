@@ -49,25 +49,28 @@ const ChatInput: FC<ChatInputProps> = ({ chatPartner, chatId }) => {
   }
 //Error typingTimeoutRef
   const handleTyping = () => {
-    // Send typing indicator
+    // Avoid spamming when offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+
+    // Send typing indicator (ignore network errors)
     fetch('/api/typing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId, isTyping: true })
-    })
+      body: JSON.stringify({ chatId, isTyping: true }),
+    }).catch(() => {})
 
     // Clear previous timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
 
-    // Stop typing after 3 seconds
+    // Stop typing after 3 seconds (ignore network errors)
     typingTimeoutRef.current = setTimeout(() => {
       fetch('/api/typing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, isTyping: false })
-      })
+        body: JSON.stringify({ chatId, isTyping: false }),
+      }).catch(() => {})
     }, 3000)
   }
   /*
