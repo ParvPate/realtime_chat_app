@@ -107,7 +107,7 @@ const page = async ({}) => {
           <div
             key={group!.id}
             className='relative bg-zinc-50 border border-zinc-200 p-3 rounded-md'>
-            <Link href={`/dashboard/chat/group-${group!.id}`} className='relative sm:flex'>
+            <Link href={`/dashboard/groups/${group!.id}`} className='relative sm:flex'>
               <div className='mb-4 flex-shrink-0 sm:mb-0 sm:mr-4'>
                 <div className='relative h-6 w-6'>
                   <Image

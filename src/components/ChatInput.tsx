@@ -5,6 +5,7 @@ import { FC, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import TextareaAutosize from 'react-textarea-autosize'
 import Button from './ui/Button'
+import GroupPollModal from './group/GroupPollModal'
 import { User } from '@/types/db'
 /*
 interface ChatInputProps {
@@ -23,6 +24,7 @@ const ChatInput: FC<ChatInputProps> = ({ chatPartner, chatId }) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [input, setInput] = useState<string>('')
+  const [showPoll, setShowPoll] = useState(false)
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -135,7 +137,17 @@ const ChatInput: FC<ChatInputProps> = ({ chatPartner, chatId }) => {
         </div>
 
         <div className="absolute right-0 bottom-0 flex justify-between py-2 pl-3 pr-2">
-          <div className="flex-shrink-0">
+          <div className="flex items-center gap-2">
+            {chatId.startsWith('group:') && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowPoll(true)}
+                className="inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+              >
+                Create Poll
+              </Button>
+            )}
             <Button
               disabled={isLoading || !input.trim()}
               onClick={sendMessage}
@@ -147,6 +159,12 @@ const ChatInput: FC<ChatInputProps> = ({ chatPartner, chatId }) => {
           </div>
         </div>
       </div>
+      {showPoll && (
+        <GroupPollModal
+          chatId={chatId}
+          onClose={() => setShowPoll(false)}
+        />
+      )}
     </div>
   )
 

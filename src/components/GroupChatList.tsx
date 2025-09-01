@@ -35,7 +35,7 @@ export default function GroupChatList({ sessionId, groups }: GroupChatListProps)
       {activeGroups.map((group) => (
         <Link
           key={group.id}
-          href={`/dashboard/chat/group:${group.id}`}
+          href={`/dashboard/groups/${group.id}`}
           className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded"
         >
           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">

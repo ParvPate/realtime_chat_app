@@ -42,48 +42,72 @@ const Messages: FC<MessagesProps> = ({
   const [messages, setMessages] = useState<Message[]>(initialMessages)
 
   useEffect(() => {
-    pusherClient.subscribe(toPusherKey(`chat:${chatId}`))
+    let channelKey: string;
+    let eventName: string;
+    let updateEventName: string;
 
-    const messageHandler = (message: Message) => {
-      console.log('New message received:', message) // Debug log
-      console.log('Session ID:', sessionId) // Debug log
-      console.log('Message sender ID:', message.senderId) // Debug log
-      
-      setMessages((prev) => [message, ...prev])
+    if (isGroup) {
+      // For group chats, subscribe to group:${groupId}
+      const groupId = chatId.replace('group:', '');
+      channelKey = toPusherKey(`group:${groupId}`);
+      eventName = 'incoming_message';
+      updateEventName = 'message_updated';
+    } else {
+      // For 1-1 chats, subscribe to chat:${chatId}
+      channelKey = toPusherKey(`chat:${chatId}`);
+      eventName = 'incoming-message';
+      updateEventName = 'message-updated';
     }
-
-    pusherClient.bind('incoming-message', messageHandler)
-
-    return () => {
-      pusherClient.unsubscribe(toPusherKey(`chat:${chatId}`))
-      pusherClient.unbind('incoming-message', messageHandler)
-    }
-  }, [chatId, sessionId])
-
-  // In your Messages component
-  useEffect(() => {
-    const channelKey = isGroup 
-      ? toPusherKey(`group:${chatId}:messages`)
-      : toPusherKey(`chat:${chatId}`)
-      
-    pusherClient.subscribe(channelKey)
     
-    const messageHandler = (message: Message) => {
-      setMessages((prev) => [message, ...prev])
-    }
+    pusherClient.subscribe(channelKey);
 
-    pusherClient.bind('new_message', messageHandler)
+    const messageHandler = (message: Message) => {
+      // Add new message to the beginning of the array (since we're using flex-col-reverse)
+      setMessages((prev) => [message, ...prev]);
+    };
+
+    const messageUpdatedHandler = (updated: Message) => {
+      // Replace existing message by id (used for unsend/tombstone updates)
+      setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
+    };
+
+    pusherClient.bind(eventName, messageHandler);
+    pusherClient.bind(updateEventName, messageUpdatedHandler);
 
     return () => {
-      pusherClient.unsubscribe(channelKey)
-      pusherClient.unbind('new_message', messageHandler)
-    }
-  }, [chatId, isGroup])
+      pusherClient.unsubscribe(channelKey);
+      pusherClient.unbind(eventName, messageHandler);
+      pusherClient.unbind(updateEventName, messageUpdatedHandler);
+    };
+  }, [chatId, sessionId, isGroup]);
 
   const scrollDownRef = useRef<HTMLDivElement | null>(null)
-
+  /*
   const formatTimestamp = (timestamp: number) => {
-    return format(timestamp, 'HH:mm')
+    return format(timestamp ?? Date.now(), 'HH:mm')
+  }*/
+
+  const formatTimestamp = (timestamp?: number) => {
+  if (!timestamp) return '' // or return a fallback like '--:--'
+  return format(timestamp, 'HH:mm')
+}
+
+  const unsendMessage = async (messageId: string) => {
+    try {
+      // optimistic UI update
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, text: '__deleted__' } : m))
+      )
+
+      await fetch('/api/message/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, messageId }),
+      })
+    } catch (e) {
+      console.error('Failed to unsend message', e)
+      // Optionally: refetch messages or revert optimistic change
+    }
   }
 
   // Debug: Log the current messages and sessionId
@@ -129,17 +153,31 @@ const Messages: FC<MessagesProps> = ({
                 )}>
                 <span
                   className={cn('px-4 py-2 rounded-lg inline-block', {
-                    'bg-indigo-600 text-white': isCurrentUser,
-                    'bg-gray-200 text-gray-900': !isCurrentUser,
+                    'bg-indigo-600 text-white': isCurrentUser && message.text !== '__deleted__',
+                    'bg-gray-200 text-gray-900': !isCurrentUser && message.text !== '__deleted__',
+                    'bg-gray-100 text-gray-500 italic': message.text === '__deleted__',
                     'rounded-br-none':
                       !hasNextMessageFromSameUser && isCurrentUser,
                     'rounded-bl-none':
                       !hasNextMessageFromSameUser && !isCurrentUser,
                   })}>
-                  {message.text}{' '}
+                  {message.text === '__deleted__'
+                    ? (isCurrentUser ? 'You unsent a message' : 'This message was unsent')
+                    : message.text}{' '}
                   <span className='ml-2 text-xs text-gray-400'>
                     {formatTimestamp(message.timestamp)}
                   </span>
+                  {isCurrentUser && message.text !== '__deleted__' && (
+                    <button
+                      onClick={() => unsendMessage(message.id)}
+                      className={cn(
+                        'ml-3 text-xs underline',
+                        isCurrentUser ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'
+                      )}
+                    >
+                      Unsend
+                    </button>
+                  )}
                 </span>
               </div>
 

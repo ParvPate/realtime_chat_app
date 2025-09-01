@@ -2,84 +2,127 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { pusherServer } from '@/lib/pusher'
+import { toPusherKey } from '@/lib/utils'
+import { fetchRedis } from '@/helpers/redis'
 import { nanoid } from 'nanoid'
-import { GroupChat } from '@/types/db'
+import type { GroupChat } from '@/types/db'
 
 export async function POST(req: Request) {
   try {
-    /*
     const session = await getServerSession(authOptions)
     if (!session) return new Response('Unauthorized', { status: 401 })
 
-    const { name, description, members } = await req.json()
-    
-    // Validate input
-    if (!name || !members || members.length < 2) {
-      return new Response('Invalid group data', { status: 400 })
+    const body = await req.json()
+    const name: string = body?.name
+    const membersInput: unknown = body?.members
+
+    if (!name || typeof name !== 'string') {
+      return new Response('Invalid group name', { status: 400 })
     }
-    if (!Array.isArray(members) || members.length === 0) {
-      return new Response('At least one member is required', { status: 400 })
+    if (!Array.isArray(membersInput)) {
+      return new Response('Invalid members array', { status: 400 })
     }
 
-    // Sanitize inputs
-    const sanitizedName = name.trim().slice(0, 50)
-    const sanitizedDescription = description?.trim().slice(0, 200) || ''
-    const validMembers = members.filter(id => typeof id === 'string' && id.length > 0)
+    // Normalize inputs (UI currently sends emails; accept friend IDs or emails)
+    const normalizedInputs = (membersInput as unknown[])
+      .map((v) => String(v ?? '').trim())
+      .filter((s) => s.length > 0)
 
-    if (validMembers.length === 0) {
+    // Get current user's friends (IDs) to constrain and resolve emails -> IDs
+    const friendIds = (await fetchRedis(
+      'smembers',
+      `user:${session.user.id}:friends`
+    )) as string[] | null
+
+    const emailToId = new Map<string, string>()
+    if (friendIds && friendIds.length) {
+      await Promise.all(
+        friendIds.map(async (fid) => {
+          const raw = (await fetchRedis('get', `user:${fid}`)) as string | null
+          if (!raw) return
+          try {
+            const u = JSON.parse(raw)
+            if (u?.email) emailToId.set(String(u.email).toLowerCase(), fid)
+          } catch {
+            // ignore bad user doc
+          }
+        })
+      )
+    }
+
+    const resolvedIds = new Set<string>()
+    for (const token of normalizedInputs) {
+      if (token.includes('@')) {
+        // treat as email, resolve within friends
+        const id = emailToId.get(token.toLowerCase())
+        if (id) resolvedIds.add(id)
+      } else {
+        // treat as id, ensure it's a friend
+        if (friendIds?.includes(token)) resolvedIds.add(token)
+      }
+    }
+
+    // Do not allow empty (must have at least one other member)
+    resolvedIds.delete(session.user.id)
+    const memberIds = Array.from(resolvedIds)
+    if (memberIds.length < 1) {
       return new Response('No valid members provided', { status: 400 })
     }
 
-    const groupId = nanoid()
-    const group: GroupChat = {
-      id: groupId,
-      name,
-      description,
-      members: [session.user.id, ...members],
-      admins: [session.user.id],
-      createdAt: Date.now(),
-      createdBy: session.user.id
-    }
-
-    // Store group data
-    await db.set(`groups:${groupId}`, JSON.stringify(group))
-    
-    // Add group to each member's group list
-    for (const memberId of group.members) {
-      await db.sadd(`user:${memberId}:groups`, groupId)
-    }
-
-    // Notify all members
-    await pusherServer.trigger(
-      group.members.map(id => `user:${id}:groups`),
-      'group_created',
-      group
-    )
-
-    return Response.json({ group })
-    */
-    const session = await getServerSession(authOptions)
-    if (!session) return new Response('Unauthorized', { status: 401 })
-
-    const { name, members } = await req.json()
-
-    if (!name || !Array.isArray(members) || members.length < 2) {
-      return new Response('Invalid group data', { status: 400 })
-    }
-
+    const now = Date.now()
     const groupId = nanoid()
     const groupKey = `group:${groupId}`
 
+    // Canonical group object for storage
     const groupData = {
       id: groupId,
       name,
       admin: session.user.id,
-      members: [session.user.id, ...members],
-      createdAt: Date.now(),
+      members: [session.user.id, ...memberIds],
+      createdAt: now,
     }
 
+    // Persist canonical group
     await db.set(groupKey, JSON.stringify(groupData))
-    await db.sadd(`${groupKey}:members`, session.user.id, ...members)
+    // Members set used for authorization/lookups
+    await db.sadd(`${groupKey}:members`, session.user.id, ...memberIds)
+
+    // Info doc for /groups/[groupId] page
+    const info = {
+      id: groupId,
+      name,
+      createdBy: session.user.id,
+      createdAt: now,
+    }
+    await db.set(`group:${groupId}:info`, JSON.stringify(info))
+
+    // Listing doc for dashboard "Your Groups" (SSR list)
+    const listing = { id: groupId, name, image: null as string | null }
+    await db.set(`groups:${groupId}`, JSON.stringify(listing))
+
+    // Add group to each member's personal set so it shows up in lists
+    for (const memberId of groupData.members) {
+      await db.sadd(`user:${memberId}:groups`, groupId)
+    }
+
+    // Realtime notify each member (clients may subscribe to user:{id}:groups)
+    const payload: GroupChat = {
+      id: groupId,
+      name,
+      description: undefined,
+      members: groupData.members,
+      admins: [session.user.id],
+      createdAt: now,
+      createdBy: session.user.id,
+      avatar: undefined,
+    }
+    for (const memberId of groupData.members) {
+      await pusherServer.trigger(
+        toPusherKey(`user:${memberId}:groups`),
+        'group_created',
+        payload
+      )
+    }
 
     return new Response(JSON.stringify(groupData), { status: 200 })
   } catch (error) {

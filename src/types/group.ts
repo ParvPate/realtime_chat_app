@@ -13,6 +13,22 @@ export type GroupMember = {
   image?: string | null
 }
 
+// Poll types used by group poll messages
+export type GroupPollOption = {
+  id: string
+  text: string
+  votes: string[] // userIds
+}
+
+export type GroupPoll = {
+  question: string
+  options: GroupPollOption[]
+  totalVotes: number
+  allowMultipleVotes: boolean
+  anonymous?: boolean
+  expiresAt?: number
+}
+
 export type GroupMessage = {
   id: string
   text: string
@@ -20,6 +36,9 @@ export type GroupMessage = {
   senderEmail?: string
   senderImage?: string | null
   timestamp: number
+  // optional poll payload (only when type === 'poll')
+  type?: 'poll'
+  poll?: GroupPoll
   // client-only UI flags
   _status?: 'sending' | 'sent'
 }

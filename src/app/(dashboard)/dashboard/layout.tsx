@@ -11,6 +11,7 @@ import { fetchRedis } from '@/helpers/redis'
 import { getFriendsByUserId } from '@/helpers/get-friends-by-user-id'
 import SidebarChatList from '@/components/SidebarChatList'
 import MobileChatLayout from '@/components/MobileChatLayout'
+import GroupChatList from '@/components/GroupChatList'
 import { SidebarOption } from '@/types/typings'
 import { User } from '@/types/db'
 
@@ -43,6 +44,18 @@ const Layout = async ({ children }: LayoutProps) => {
     )) as User[]
   ).length
 
+  // Fetch groups for sidebar
+  const groupIds = (await fetchRedis('smembers', `user:${session.user.id}:groups`)) as string[] | null
+  const groups = groupIds
+    ? await Promise.all(
+        groupIds.map(async (gid) => {
+          const raw = (await fetchRedis('get', `group:${gid}`)) as string | null
+          return raw ? JSON.parse(raw) : null
+        })
+      )
+    : []
+  const groupsList = (groups ?? []).filter(Boolean)
+
   return (
     <div className='w-full flex h-screen'>
       <div className='md:hidden'>
@@ -69,6 +82,9 @@ const Layout = async ({ children }: LayoutProps) => {
           <ul role='list' className='flex flex-1 flex-col gap-y-7'>
             <li>
               <SidebarChatList sessionId={session.user.id} friends={friends} />
+            </li>
+            <li>
+              <GroupChatList sessionId={session.user.id} groups={groupsList as any} />
             </li>
             <li>
               <div className='text-xs font-semibold leading-6 text-gray-400'>
