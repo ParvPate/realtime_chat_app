@@ -171,9 +171,24 @@ export default function GroupChat({
                 ) : (
                   <>
                     <div className="group relative flex items-start gap-2">
-                      <div className="whitespace-pre-wrap break-words">
-                        {m.text === '__deleted__' ? (mine ? 'You unsent a message' : 'This message was unsent') : m.text}
-                      </div>
+                      {m.text === '__deleted__' ? (
+                        <div className="whitespace-pre-wrap break-words">
+                          {mine ? 'You unsent a message' : 'This message was unsent'}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {m.image ? (
+                            <img
+                              src={m.image}
+                              alt="Image message"
+                              className="max-w-xs max-h-64 rounded-md border border-gray-200"
+                            />
+                          ) : null}
+                          {m.text ? (
+                            <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                          ) : null}
+                        </div>
+                      )}
 
                       {/* Reaction trigger button appears to the right of the message */}
                       {!mine && m.text !== '__deleted__' && (

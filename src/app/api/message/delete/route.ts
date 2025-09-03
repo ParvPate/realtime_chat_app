@@ -84,6 +84,7 @@ export async function POST(req: Request) {
     const tombstone: Message = {
       ...original,
       text: '__deleted__',
+      image: undefined,
       timestamp: score,
     }
 

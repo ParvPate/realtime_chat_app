@@ -25,7 +25,7 @@ export default async function GroupPage({ params }: Params) {
   const members: GroupMember[] = await Promise.all(
     memberIds.map(async (id) => {
       const raw = (await fetchRedis('get', `user:${id}`)) as string | null
-      if (!raw) return { id, email: 'Unknown' }
+      if (!raw) return { id, name: 'Unknown', email: 'Unknown', image: '' }
       const u = JSON.parse(raw)
       return { id, name: u.name, email: u.email, image: u.image }
     })

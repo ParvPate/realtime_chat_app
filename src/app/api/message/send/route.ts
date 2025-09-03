@@ -13,8 +13,47 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions)
     if (!session) return new Response('Unauthorized', { status: 401 })
 
-    const { text, chatId } = (await req.json()) as { text: string; chatId: string }
-    if (!text || !chatId) return new Response('Invalid body', { status: 400 })
+    const body = await req.json().catch(() => ({} as any))
+    const chatId = typeof body?.chatId === 'string' ? body.chatId : ''
+    const rawText = typeof body?.text === 'string' ? body.text : ''
+    const text = rawText?.trim?.() ?? ''
+    const image = typeof body?.image === 'string' ? body.image : undefined
+    // minimal diagnostics (avoid logging actual image)
+    console.debug('[api/message/send] parsed body', {
+      chatId,
+      textLength: text.length,
+      imageLength: image?.length ?? 0,
+    })
+
+    if (!chatId || (!text && !image)) {
+      return new Response('Invalid body', { status: 400 })
+    }
+
+    // Guard against oversized payloads (approx 1MB JSON limit)
+    const MAX_IMAGE_CHARS = 1_000_000
+    if (image && image.length > MAX_IMAGE_CHARS) {
+      return new Response('Image too large', { status: 413 })
+    }
+
+    // If image is a data URL, persist the raw data separately and replace with a small internal URL.
+    // This avoids exceeding Pusher payload limits (~10KB) and large event bodies.
+    let messageImage: string | undefined = image
+    if (typeof image === 'string' && image.startsWith('data:image/')) {
+      try {
+        const commaIdx = image.indexOf(',')
+        if (commaIdx > -1) {
+          const meta = image.slice(5, commaIdx) // e.g. "image/png;base64"
+          const mime = meta.split(';')[0] // "image/png"
+          const base64 = image.slice(commaIdx + 1)
+          const imgId = nanoid()
+          await db.set(`image:${imgId}`, JSON.stringify({ mime, data: base64 }))
+          messageImage = `/api/images/${imgId}`
+        }
+      } catch (e) {
+        console.error('[api/message/send] failed to persist image data', e)
+        return new Response('Failed to persist image', { status: 500 })
+      }
+    }
 
     const timestamp = Date.now()
 
@@ -31,10 +70,17 @@ export async function POST(req: Request) {
       const messageData: Message = {
         id: nanoid(),
         senderId: session.user.id,
-        text,
+        text: text || '',
+        image: messageImage,
         timestamp,
       }
-      const message = messageValidator.parse(messageData)
+      let message: Message
+      try {
+        message = messageValidator.parse(messageData)
+      } catch (e) {
+        console.error('[api/message/send] validation error (group)', e)
+        return new Response('Invalid message', { status: 400 })
+      }
 
       // Persist
       await db.zadd(`group:${groupId}:messages`, {
@@ -66,10 +112,17 @@ export async function POST(req: Request) {
     const messageData: Message = {
       id: nanoid(),
       senderId: session.user.id,
-      text,
+      text: text || '',
+      image: messageImage,
       timestamp,
     }
-    const message = messageValidator.parse(messageData)
+    let message: Message
+    try {
+      message = messageValidator.parse(messageData)
+    } catch (e) {
+      console.error('[api/message/send] validation error (dm)', e)
+      return new Response('Invalid message', { status: 400 })
+    }
 
     // Realtime to the chat room
     await pusherServer.trigger(toPusherKey(`chat:${chatId}`), 'incoming-message', message)
@@ -91,6 +144,7 @@ export async function POST(req: Request) {
 
     return new Response('OK')
   } catch (error) {
+    console.error('[api/message/send] error', error)
     if (error instanceof Error) {
       return new Response(error.message, { status: 500 })
     }

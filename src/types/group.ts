@@ -32,6 +32,7 @@ export type GroupPoll = {
 export type GroupMessage = {
   id: string
   text: string
+  image?: string
   senderId: string
   senderEmail?: string
   senderImage?: string | null

@@ -66,8 +66,10 @@ export async function POST(req: Request, { params }: { params: { chatId: string 
     }
 
     const body = await req.json().catch(() => ({}))
-    const text = typeof body?.text === 'string' ? body.text.trim() : ''
-    if (!text) return new Response('Text required', { status: 400 })
+    const rawText = typeof body?.text === 'string' ? body.text : ''
+    const text = rawText?.trim?.() ?? ''
+    const image = typeof body?.image === 'string' ? body.image : undefined
+    if (!text && !image) return new Response('Text or image required', { status: 400 })
 
     // Validate friendship
     const [userId1, userId2] = chatId.split('--')
@@ -83,7 +85,8 @@ export async function POST(req: Request, { params }: { params: { chatId: string 
     const messageData: Message = {
       id: nanoid(),
       senderId: userId,
-      text,
+      text: text || '',
+      image,
       timestamp,
     }
     const message = messageValidator.parse(messageData)

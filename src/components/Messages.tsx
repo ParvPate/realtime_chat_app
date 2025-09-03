@@ -163,22 +163,44 @@ const Messages: FC<MessagesProps> = ({
                       'rounded-bl-none':
                         !hasNextMessageFromSameUser && !isCurrentUser,
                     })}>
-                    {message.text === '__deleted__'
-                      ? (isCurrentUser ? 'You unsent a message' : 'This message was unsent')
-                      : message.text}{' '}
-                    <span className='ml-2 text-xs text-gray-400'>
-                      {formatTimestamp(message.timestamp)}
-                    </span>
-                    {isCurrentUser && message.text !== '__deleted__' && (
-                      <button
-                        onClick={() => unsendMessage(message.id)}
-                        className={cn(
-                          'ml-3 text-xs underline',
-                          isCurrentUser ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'
+                    {message.text === '__deleted__' ? (
+                      <>
+                        {isCurrentUser ? 'You unsent a message' : 'This message was unsent'}
+                        <span className='ml-2 text-xs text-gray-400'>
+                          {formatTimestamp(message.timestamp)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {message.image ? (
+                          <div className="flex flex-col gap-2">
+                            <img
+                              src={message.image}
+                              alt="Image message"
+                              className="max-w-xs max-h-64 rounded-md border border-gray-200"
+                            />
+                            {message.text ? (
+                              <div className="whitespace-pre-wrap break-words">{message.text}</div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="whitespace-pre-wrap break-words">{message.text}</span>
                         )}
-                      >
-                        Unsend
-                      </button>
+                        <span className='ml-2 text-xs text-gray-400'>
+                          {formatTimestamp(message.timestamp)}
+                        </span>
+                        {isCurrentUser && (
+                          <button
+                            onClick={() => unsendMessage(message.id)}
+                            className={cn(
+                              'ml-3 text-xs underline',
+                              isCurrentUser ? 'text-white/80 hover:text-white' : 'text-gray-700 hover:text-black'
+                            )}
+                          >
+                            Unsend
+                          </button>
+                        )}
+                      </>
                     )}
                   </span>
 
