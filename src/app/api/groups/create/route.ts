@@ -65,21 +65,23 @@ export async function POST(req: Request) {
     // Do not allow empty (must have at least one other member)
     resolvedIds.delete(session.user.id)
     const memberIds = Array.from(resolvedIds)
-    if (memberIds.length < 1) {
-      return new Response('No valid members provided', { status: 400 })
+    // Require at least 2 friends selected so total participants >= 3 (you + 2 friends)
+    if (memberIds.length < 2) {
+      return new Response('At least 2 friends are required to create a group', { status: 400 })
     }
 
     const now = Date.now()
     const groupId = nanoid()
     const groupKey = `group:${groupId}`
 
-    // Canonical group object for storage
+    // Canonical group object for storage (use admins array)
     const groupData = {
       id: groupId,
       name,
-      admin: session.user.id,
+      admins: [session.user.id],
       members: [session.user.id, ...memberIds],
       createdAt: now,
+      createdBy: session.user.id,
     }
 
     // Persist canonical group
@@ -99,6 +101,9 @@ export async function POST(req: Request) {
     // Listing doc for dashboard "Your Groups" (SSR list)
     const listing = { id: groupId, name, image: null as string | null }
     await db.set(`groups:${groupId}`, JSON.stringify(listing))
+
+    // Global registry of all groups for discovery
+    await db.sadd('groups:all', groupId)
 
     // Add group to each member's personal set so it shows up in lists
     for (const memberId of groupData.members) {

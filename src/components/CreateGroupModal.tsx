@@ -17,7 +17,7 @@ export default function CreateGroupModal({ friends, onClose }: CreateGroupModalP
   const [isLoading, setIsLoading] = useState(false)
 
   const createGroup = async () => {
-    if (!groupName || selectedMembers.length === 0) return
+    if (!groupName || selectedMembers.length < 2) return
 
     setIsLoading(true)
     try {
@@ -62,7 +62,7 @@ export default function CreateGroupModal({ friends, onClose }: CreateGroupModalP
         />
 
         <div className="mb-4">
-          <p className="font-medium mb-2">Select Members:</p>
+          <p className="font-medium mb-2">Select Members (min 2):</p>
           {friends.map((friend) => (
             <label key={friend.id} className="flex items-center space-x-2 mb-2">
               <input
@@ -88,9 +88,9 @@ export default function CreateGroupModal({ friends, onClose }: CreateGroupModalP
           >
             Cancel
           </Button>
-          <Button 
-            onClick={createGroup} 
-            disabled={!groupName || selectedMembers.length === 0 || isLoading}
+          <Button
+            onClick={createGroup}
+            disabled={!groupName || selectedMembers.length < 2 || isLoading}
             className="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
           >
             {isLoading ? 'Creating...' : 'Create Group'}

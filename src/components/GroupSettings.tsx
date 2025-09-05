@@ -18,6 +18,20 @@ export default function GroupSettings({ group, currentUser, allUsers, onClose }:
   const isAdmin = group.admins.includes(currentUser.id)
   const availableUsers = allUsers.filter(user => !group.members.includes(user.id))
 
+  const deleteGroup = async () => {
+    if (!isAdmin) return
+    const confirmed = window.confirm('Are you sure you want to delete this group? This action cannot be undone.')
+    if (!confirmed) return
+    try {
+      const res = await fetch(`/api/groups/${group.id}/delete`, { method: 'POST' })
+      if (res.ok) {
+        onClose()
+      }
+    } catch (e) {
+      console.error('Failed to delete group:', e)
+    }
+  }
+
   const updateGroup = async () => {
     if (!isAdmin) return
 
@@ -192,10 +206,10 @@ export default function GroupSettings({ group, currentUser, allUsers, onClose }:
         )}
 
         {/* Actions */}
-        <div className="flex space-x-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+            className="sm:flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
           >
             Close
           </button>
@@ -205,6 +219,15 @@ export default function GroupSettings({ group, currentUser, allUsers, onClose }:
           >
             Leave Group
           </button>
+          {isAdmin && (
+            <button
+              onClick={deleteGroup}
+              className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+              title="Delete group"
+            >
+              Delete Group
+            </button>
+          )}
         </div>
       </div>
     </div>

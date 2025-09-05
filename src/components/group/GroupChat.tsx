@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { pusherClient } from '@/lib/pusher'
+import { useRouter } from 'next/navigation'
 import { toPusherKey } from '@/lib/utils'
 import GroupHeader from './GroupHeader'
 import GroupMemberList from './GroupMemberList'
@@ -28,11 +29,15 @@ export default function GroupChat({
   members,
   initialMessages,
 }: Props) {
+  const router = useRouter()
   const [messages, setMessages] = useState<GroupMessage[]>(initialMessages)
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
   const [showMembers, setShowMembers] = useState(false)
   const [openPickerId, setOpenPickerId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+
+  // Track live member count so header reflects add/remove or auto-delete
+  const [memberCount, setMemberCount] = useState<number>(members.length)
 
   // quick lookup user info
   const memberMap = useMemo(() => {
@@ -40,6 +45,21 @@ export default function GroupChat({
     members.forEach((m) => map.set(m.id, m))
     return map
   }, [members])
+
+  // Build a lightweight array just for header count display
+  const computedMembersForHeader = useMemo(() => {
+    if (memberCount <= members.length) return members.slice(0, memberCount)
+    // pad with placeholders if count increased beyond local details
+    const placeholders: GroupMember[] = Array.from({ length: memberCount - members.length }).map(
+      (_, i) => ({
+        id: `placeholder-${i}`,
+        name: 'Member',
+        email: 'member@example.com',
+        image: null,
+      })
+    )
+    return [...members, ...placeholders]
+  }, [memberCount, members])
 
   // auto scroll on new message
   useEffect(() => {
@@ -87,12 +107,25 @@ export default function GroupChat({
     pusherClient.bind('message_updated', onUpdated)
     pusherClient.bind('poll-updated', onPollUpdated)
     pusherClient.bind('typing', onTyping)
+    const onDeleted = (_payload: { groupId: string }) => {
+      // group was deleted (auto or admin); return to dashboard
+      router.push('/dashboard')
+    }
+    const onGroupUpdated = (payload: { id: string; members: string[] }) => {
+      if (Array.isArray(payload?.members)) {
+        setMemberCount(payload.members.length)
+      }
+    }
+    pusherClient.bind('group_deleted', onDeleted)
+    pusherClient.bind('group_updated', onGroupUpdated)
 
     return () => {
       pusherClient.unbind('incoming_message', onIncoming)
       pusherClient.unbind('message_updated', onUpdated)
       pusherClient.unbind('poll-updated', onPollUpdated)
       pusherClient.unbind('typing', onTyping)
+      pusherClient.unbind('group_deleted', onDeleted)
+      pusherClient.unbind('group_updated', onGroupUpdated)
       pusherClient.unsubscribe(channel)
     }
   }, [groupId, sessionId])
@@ -126,7 +159,7 @@ export default function GroupChat({
     <div className="flex h-full flex-col">
       <GroupHeader
         info={info}
-        members={members}
+        members={computedMembersForHeader}
         onOpenMembers={() => setShowMembers(true)}
       />
 
@@ -294,6 +327,7 @@ export default function GroupChat({
         onClose={() => setShowMembers(false)}
         info={info}
         members={members}
+        currentUserId={sessionId}
       />
     </div>
   )

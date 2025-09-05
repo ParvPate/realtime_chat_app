@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: { groupId: string
     const sanitizedName = name.trim().slice(0, 50) // Limit length
     const sanitizedDescription = description?.trim().slice(0, 200) || ''
 
-    const groupData = await fetchRedis('get', `groups:${groupId}`) as string
+    const groupData = await fetchRedis('get', `group:${groupId}`) as string
     if (!groupData) return new Response('Group not found', { status: 404 })
 
     const group: GroupChat = JSON.parse(groupData)
@@ -39,8 +39,8 @@ export async function POST(req: Request, { params }: { params: { groupId: string
       description: sanitizedDescription
     }
 
-    // Update group data
-    await db.set(`groups:${groupId}`, JSON.stringify(updatedGroup))
+    // Update group data (canonical group doc)
+    await db.set(`group:${groupId}`, JSON.stringify(updatedGroup))
 
     // Notify all members
     await pusherServer.trigger(

@@ -15,17 +15,42 @@ export default function GroupChatList({ sessionId, groups }: GroupChatListProps)
   const [activeGroups, setActiveGroups] = useState<GroupChat[]>(groups)
 
   useEffect(() => {
-    pusherClient.subscribe(toPusherKey(`user:${sessionId}:groups`))
+    const channel = toPusherKey(`user:${sessionId}:groups`)
+    pusherClient.subscribe(channel)
 
     const groupCreatedHandler = (group: GroupChat) => {
-      setActiveGroups((prev) => [...prev, group])
+      setActiveGroups((prev) => {
+        // avoid duplicates
+        if (prev.some((g) => g.id === group.id)) {
+          return prev.map((g) => (g.id === group.id ? group : g))
+        }
+        return [...prev, group]
+      })
+    }
+
+    const groupUpdatedHandler = (updated: GroupChat) => {
+      setActiveGroups((prev) => {
+        const idx = prev.findIndex((g) => g.id === updated.id)
+        if (idx === -1) return [...prev, updated]
+        const copy = [...prev]
+        copy[idx] = { ...prev[idx], ...updated }
+        return copy
+      })
+    }
+
+    const groupDeletedHandler = (payload: { groupId: string }) => {
+      setActiveGroups((prev) => prev.filter((g) => g.id !== payload.groupId))
     }
 
     pusherClient.bind('group_created', groupCreatedHandler)
+    pusherClient.bind('group_updated', groupUpdatedHandler)
+    pusherClient.bind('group_deleted', groupDeletedHandler)
 
     return () => {
-      pusherClient.unsubscribe(toPusherKey(`user:${sessionId}:groups`))
       pusherClient.unbind('group_created', groupCreatedHandler)
+      pusherClient.unbind('group_updated', groupUpdatedHandler)
+      pusherClient.unbind('group_deleted', groupDeletedHandler)
+      pusherClient.unsubscribe(channel)
     }
   }, [sessionId])
 

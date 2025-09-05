@@ -14,6 +14,8 @@ import MobileChatLayout from '@/components/MobileChatLayout'
 import GroupChatList from '@/components/GroupChatList'
 import { SidebarOption } from '@/types/typings'
 import { User } from '@/types/db'
+import GcRequestSidebarOptions from '@/components/GcRequestSidebarOptions'
+import ToastClientProvider from '@/components/ui/ToastClientProvider'
 
 interface LayoutProps {
   children: ReactNode
@@ -56,8 +58,17 @@ const Layout = async ({ children }: LayoutProps) => {
     : []
   const groupsList = (groups ?? []).filter(Boolean)
 
+  // Count pending group-chat entry requests for this user (as admin/creator)
+  const gcRequestCount = (
+    ((await fetchRedis(
+      'smembers',
+      `user:${session.user.id}:group_join_requests`
+    )) as string[]) ?? []
+  ).length
+
   return (
-    <div className='w-full flex h-screen'>
+    <ToastClientProvider>
+      <div className='w-full flex h-screen'>
       <div className='md:hidden'>
         <MobileChatLayout
           friends={friends}
@@ -115,6 +126,12 @@ const Layout = async ({ children }: LayoutProps) => {
                     initialUnseenRequestCount={unseenRequestCount}
                   />
                 </li>
+                <li>
+                  <GcRequestSidebarOptions
+                    sessionId={session.user.id}
+                    initialCount={gcRequestCount}
+                  />
+                </li>
               </ul>
             </li>
 
@@ -149,6 +166,7 @@ const Layout = async ({ children }: LayoutProps) => {
         {children}
       </aside>
     </div>
+    </ToastClientProvider>
   )
 }
 
